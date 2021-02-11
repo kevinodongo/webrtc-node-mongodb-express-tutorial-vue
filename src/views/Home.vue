@@ -17,9 +17,9 @@
                 src="https://res.cloudinary.com/dk5ch7wqm/image/upload/v1612296046/IMG-20200910-WA0020_ppnudi-removebg-preview_vqozxz.png"
                 class="h-7 sm:h-12"
               />
-              <div class="ml-3 text-2xl font-mono font-semibold">
+              <h2 class="ml-3 text-2xl font-mono font-semibold">
                 Meeting Application
-              </div>
+              </h2>
             </div>
             <div class="divide-y divide-gray-200">
               <div
