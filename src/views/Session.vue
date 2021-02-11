@@ -571,7 +571,7 @@ export default {
       let split_meeting_url = this.meeting_code.split("/");
       let meeting_name = split_meeting_url.pop();
       let response = decryptinformation(meeting_name);
-      this.master.signalingClient = io("https://webrtc-backend-vue.herokuapp.com/");
+      this.master.signalingClient = io("https://webrtc-app-backend-vue.herokuapp.com/");
       this.master.signalingClient.on("connect", async () => {
         // * Assign value, create a session, temporary save socket id
         if (response) {
@@ -730,7 +730,7 @@ export default {
         return;
       }
 
-      this.viewer.signalingClient = io("https://webrtc-backend-vue.herokuapp.com/");
+      this.viewer.signalingClient = io("https://webrtc-app-backend-vue.herokuapp.com/");
       this.viewer.signalingClient.on("connect", async () => {
         // * Assign value, create a session, temporary save socket id
         if (response) {
