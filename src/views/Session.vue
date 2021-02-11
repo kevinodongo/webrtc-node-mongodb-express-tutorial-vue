@@ -353,7 +353,7 @@
                         type="button"
                         class="w-full cursor-pointer inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 p-3 bg-purple-600 text-base font-medium text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:w-auto"
                       >
-                        <Spinner v-if="loading" />
+                        <Spinner v-if="saving" />
                         <span class="ml-2">Join meeting</span>
                       </button>
                       <button
@@ -361,9 +361,9 @@
                         :disabled="invalid"
                         @click="joinmeetingasviewer"
                         type="button"
-                        class="w-full cursor-pointer mt-2 inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 p-3 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:w-auto"
+                        class="w-full cursor-pointer inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 p-3 bg-purple-600 text-base font-medium text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:w-auto"
                       >
-                        <Spinner v-if="loading" />
+                        <Spinner v-if="saving" />
                         <span class="ml-2">Join meeting</span>
                       </button>
                     </div>
@@ -510,7 +510,8 @@ export default {
       audio_track: true,
       //end
       user_master: null,
-      error: null
+      error: null,
+      saving: false
     };
   },
   // computed
@@ -526,6 +527,7 @@ export default {
   },
   // on page mount
   async mounted() {
+    this.saving = true;
     new ClipboardJS(".btn");
     let application_url = window.location.href; // get current url
     // *On page mount check if the meeting name is available
@@ -543,10 +545,13 @@ export default {
     if (sessions_response.length > 0) {
       console.log(sessions_response);
       this.user_master = false;
+      this.saving = false;
     } else if (sessions_response.length === 0) {
       this.user_master = true;
+      this.saving = false;
     } else {
       this.error = true;
+      this.saving = false;
     }
     // !end
   },
@@ -571,7 +576,10 @@ export default {
       let split_meeting_url = this.meeting_code.split("/");
       let meeting_name = split_meeting_url.pop();
       let response = decryptinformation(meeting_name);
-      this.master.signalingClient = io("https://webrtc-app-backend-vue.herokuapp.com/");
+      this.master.signalingClient = io(
+        "https://webrtc-app-backend-vue.herokuapp.com/"
+      );
+
       this.master.signalingClient.on("connect", async () => {
         // * Assign value, create a session, temporary save socket id
         if (response) {
@@ -724,13 +732,15 @@ export default {
 
       // !check length
       if (this.sessions.length > 2) {
-        console.log("[MEETING] Meeting in session:")
+        console.log("[MEETING] Meeting in session:");
         this.loading = false;
         this.meeting = false;
         return;
       }
 
-      this.viewer.signalingClient = io("https://webrtc-app-backend-vue.herokuapp.com/");
+      this.viewer.signalingClient = io(
+        "https://webrtc-app-backend-vue.herokuapp.com/"
+      );
       this.viewer.signalingClient.on("connect", async () => {
         // * Assign value, create a session, temporary save socket id
         if (response) {
