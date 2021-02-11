@@ -27,7 +27,7 @@ export const saveonemeeting = async item => {
     sessionid: item.socket_id
   };
   let request = {
-    url: "http://localhost:3000/meet",
+    url: "https://webrtc-backend-vue.herokuapp.com/meet",
     method: "post",
     headers: {
       "Content-type": "application/json"
@@ -47,7 +47,7 @@ export const saveonesession = async item => {
     meetingid: item.meetingid // meeting id
   };
   let request = {
-    url: "http://localhost:3000/session",
+    url: "https://webrtc-backend-vue.herokuapp.com/session",
     method: "post",
     headers: {
       "Content-type": "application/json"
@@ -66,7 +66,7 @@ export const saveonesession = async item => {
 // fetch all meetings using meetingid
 export const fetchallmeetings = async item => {
   let request = {
-    url: "http://localhost:3000/meet/all/" + item,
+    url: "https://webrtc-backend-vue.herokuapp.com/meet/all/" + item,
     method: "get",
     headers: {
       "Content-type": "application/json"
@@ -79,7 +79,7 @@ export const fetchallmeetings = async item => {
 // fetch one session meeting using socket.id
 export const fetchonemeeting = async item => {
   let request = {
-    url: "http://localhost:3000/meet/" + item,
+    url: "https://webrtc-backend-vue.herokuapp.com/meet/" + item,
     method: "get",
     headers: {
       "Content-type": "application/json"
@@ -92,7 +92,7 @@ export const fetchonemeeting = async item => {
 // fetch all sessions using meetingid
 export const fetchallsessions = async item => {
   let request = {
-    url: "http://localhost:3000/session/all/" + item,
+    url: "https://webrtc-backend-vue.herokuapp.com/session/all/" + item,
     method: "get",
     headers: {
       "Content-type": "application/json"
@@ -105,7 +105,7 @@ export const fetchallsessions = async item => {
 // fetch one session by socket.id
 export const fetchonesession = async item => {
   let request = {
-    url: "http://localhost:3000/session/" + item,
+    url: "https://webrtc-backend-vue.herokuapp.com/session/" + item,
     method: "get",
     headers: {
       "Content-type": "application/json"
@@ -123,7 +123,7 @@ export const fetchonesession = async item => {
 // delete one meeting
 export const deleteonemeeting = async item => {
   let request = {
-    url: "http://localhost:3000/meet/" + item,
+    url: "https://webrtc-backend-vue.herokuapp.com/meet/" + item,
     method: "delete",
     headers: {
       "Content-type": "application/json"
@@ -136,7 +136,7 @@ export const deleteonemeeting = async item => {
 // delete all sessions
 export const deleteallsession = async item => {
   let request = {
-    url: "http://localhost:3000/session/all/" + item,
+    url: "https://webrtc-backend-vue.herokuapp.com/session/all/" + item,
     method: "delete",
     headers: {
       "Content-type": "application/json"
@@ -149,7 +149,7 @@ export const deleteallsession = async item => {
 // delete one session
 export const deleteonesession = async item => {
   let request = {
-    url: "http://localhost:3000/meet/" + item,
+    url: "https://webrtc-backend-vue.herokuapp.com/meet/" + item,
     method: "delete",
     headers: {
       "Content-type": "application/json"

@@ -58,12 +58,17 @@
 
       <!--Navigation Drawer-->
       <div v-if="drawer1" class="absolute w-44 inset-y-0 left-0 max-w-full">
+        <!--
+         Incase increasing users
+         v-for="(item, index) in streams"
+          :key="item.id ? item.id : index"
+         -->
         <div
           class="w-full rounded-lg h-24 relative"
-          v-for="(item, index) in streams"
-          :key="item.id ? item.id : index"
+          v-if="master.remoteStream || viewer.remoteStream"
         >
           <video
+            id="remote_view"
             class="meeting-streams h-24 w-full object-cover overflow-hidden"
             autoplay
             playsinline
@@ -342,22 +347,24 @@
                     </validation-provider>
                     <div class="grid grid-cols-1">
                       <button
+                        v-if="user_master"
                         :disabled="invalid"
                         @click="joinmeetingasmaster"
                         type="button"
                         class="w-full cursor-pointer inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 p-3 bg-purple-600 text-base font-medium text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:w-auto"
                       >
                         <Spinner v-if="loading" />
-                        <span class="ml-2">Join meeting master</span>
+                        <span class="ml-2">Join meeting</span>
                       </button>
                       <button
+                        v-else
                         :disabled="invalid"
                         @click="joinmeetingasviewer"
                         type="button"
                         class="w-full cursor-pointer mt-2 inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 p-3 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:w-auto"
                       >
                         <Spinner v-if="loading" />
-                        <span class="ml-2">Join meeting viewer</span>
+                        <span class="ml-2">Join meeting</span>
                       </button>
                     </div>
                   </div>
@@ -451,7 +458,7 @@ export default {
           }
         }
       },
-      streams: [],
+      //streams: [], Incase increasing the number to more than 2
       // end
       time: new Date().toLocaleTimeString(),
       show_chat: false,
@@ -468,7 +475,7 @@ export default {
       // logged || guest user
       master: {
         signalingClient: null, // user signaling client
-        remoteStreams: [], // local meeting streams
+        remoteStream: null, // local meeting streams
         localStream: null, // local stream
         sessionid: null, // local session id
         peerConnection: null // local peer connection
@@ -476,7 +483,7 @@ export default {
       viewer: {
         signalingClient: null, // user signaling client
         localStream: null, // remote stream
-        remoteStreams: [], // remote meeting streams
+        remoteStream: null, // remote meeting streams
         sessionid: null, // remote session id
         peerConnection: null // remote peer connection
       },
@@ -500,8 +507,10 @@ export default {
       messages: [],
       // video control
       video_stream: true,
-      audio_track: true
+      audio_track: true,
       //end
+      user_master: null,
+      error: null
     };
   },
   // computed
@@ -516,18 +525,30 @@ export default {
     }
   },
   // on page mount
-  mounted() {
+  async mounted() {
     new ClipboardJS(".btn");
     let application_url = window.location.href; // get current url
-    // On page mount check if the meeting name is available
+    // *On page mount check if the meeting name is available
     const split_meeting_url = application_url.split("/"); // decrypt meeting name
-    const meeting_name = decryptinformation(split_meeting_url.pop());
+    const meeting_id = split_meeting_url.pop();
+    const meeting_name = decryptinformation(meeting_id);
     if (meeting_name === "Join meeting") {
       return;
     } else {
       this.$store.commit("savemeetingurl", application_url); // save meeting to vuex
     }
-    // end
+
+    // * Fetch all that have joined the meeting
+    const sessions_response = await fetchallmeetings(`${meeting_id}`);
+    if (sessions_response.length > 0) {
+      console.log(sessions_response);
+      this.user_master = false;
+    } else if (sessions_response.length === 0) {
+      this.user_master = true;
+    } else {
+      this.error = true;
+    }
+    // !end
   },
   // methods
   methods: {
@@ -550,7 +571,7 @@ export default {
       let split_meeting_url = this.meeting_code.split("/");
       let meeting_name = split_meeting_url.pop();
       let response = decryptinformation(meeting_name);
-      this.master.signalingClient = io("http://localhost:5000");
+      this.master.signalingClient = io("https://webrtc-backend-vue.herokuapp.com/");
       this.master.signalingClient.on("connect", async () => {
         // * Assign value, create a session, temporary save socket id
         if (response) {
@@ -603,8 +624,8 @@ export default {
           //!end
 
           // * push the user to streams array
-          await this.streams.push(this.master); // all streams for users
-          this.initializemeeting();
+          //await this.streams.push(this.master); // all streams for users
+          //this.initializemeeting(); incase you want to increase the limit to more than 2 users
           //!end
 
           // * create a peer connectiion
@@ -620,6 +641,12 @@ export default {
           // * remote tracks
           this.master.peerConnection.ontrack = event => {
             console.log("Event", event.streams);
+            this.master.remoteStream = document.getElementById("remote_view");
+            if (this.master.remoteStream.srcObject) {
+              return;
+            } else {
+              this.master.remoteStream.srcObject = event.streams[0];
+            }
           };
           //!end
         });
@@ -653,19 +680,11 @@ export default {
           //!end
           const joined_user = await fetchonemeeting(data);
           this.sessions.push(joined_user);
-          console.log(
-            "[MASTER] Signalling states: ",
-            this.master.peerConnection.signalingState
-          );
         }
       });
 
-      // * listen to new answers
+      // * listen to new answer
       this.master.signalingClient.on("answer_message", async data => {
-        console.log(
-          "[MASTER] Signalling states: ",
-          this.master.peerConnection.signalingState
-        );
         const response = JSON.parse(data);
         if (response.desc.type === "answer") {
           if (this.master.peerConnection.signalingState !== "stable") {
@@ -691,7 +710,7 @@ export default {
       this.master.signalingClient.open();
     },
     // joined meeting as viewer
-    joinmeetingasviewer() {
+    async joinmeetingasviewer() {
       // ? make connection only when username is available
       this.loading = true;
       // * get the meeting meeting
@@ -699,7 +718,19 @@ export default {
       let meeting_name = split_meeting_url.pop();
       let response = decryptinformation(meeting_name);
 
-      this.viewer.signalingClient = io("http://localhost:5000");
+      // * Fetch all that have joined the meeting
+      const sessions_response = await fetchallmeetings(`${meeting_name}`);
+      this.sessions = [...sessions_response];
+
+      // !check length
+      if (this.sessions.length > 2) {
+        console.log("[MEETING] Meeting in session:")
+        this.loading = false;
+        this.meeting = false;
+        return;
+      }
+
+      this.viewer.signalingClient = io("https://webrtc-backend-vue.herokuapp.com/");
       this.viewer.signalingClient.on("connect", async () => {
         // * Assign value, create a session, temporary save socket id
         if (response) {
@@ -716,9 +747,6 @@ export default {
         let path = `/session/${meeting_name}`;
         if (this.$route.path !== path) this.$router.replace(path);
 
-        // * Fetch all that have joined the meeting
-        const sessions_response = await fetchallmeetings(`${meeting_name}`);
-        this.sessions = [...sessions_response];
         // * Fetch all messages and attachments
         const contents_response = await fetchallsessions(`${meeting_name}`);
         contents_response.forEach(async e => {
@@ -766,8 +794,8 @@ export default {
         //!end
 
         // * push the user to streams array
-        await this.streams.push(this.viewer); // all streams for users
-        this.initializemeeting();
+        //await this.streams.push(this.viewer); // all streams for users
+        //this.initializemeeting();
         //!end
 
         // * create a peer connectiion
@@ -780,7 +808,12 @@ export default {
         );
         // * remote tracks
         this.viewer.peerConnection.ontrack = event => {
-          console.log("Event", event.streams);
+          this.viewer.remoteStream = document.getElementById("remote_view");
+          if (this.viewer.remoteStream.srcObject) {
+            return;
+          } else {
+            this.viewer.remoteStream.srcObject = event.streams[0];
+          }
         };
         //!end
         const response = JSON.parse(data);
