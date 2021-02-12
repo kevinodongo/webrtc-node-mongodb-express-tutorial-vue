@@ -57,21 +57,19 @@
       <!--/end-->
 
       <!--Navigation Drawer-->
-      <div class="absolute w-44 inset-y-0 left-0 max-w-full">
-        <!--
-         Incase increasing users
-         v-for="(item, index) in streams"
-          :key="item.id ? item.id : index"
-         -->
-        <div class="w-full bg-gray-900 rounded-lg ml-2 mt-2 h-24 relative">
-          <video
-            id="remote_view"
-            width="100%"
-            muted
-            class="meeting-streams h-24 w-full object-cover overflow-hidden"
-            autoplay
-            playsinline
-          ></video>
+      <div
+        class="absolute px-2 overflow-y-auto w-44 sm:w-48 inset-y-0 left-0 max-w-full"
+      >
+        <div v-for="(item, index) in sessions" :key="item.id ? item.id : index">
+          <div class="w-full bg-gray-900 rounded-lg mt-2 h-24 relative">
+            <video
+              width="100%"
+              muted
+              class="meeting-streams h-24 w-full object-cover overflow-hidden"
+              autoplay
+              playsinline
+            ></video>
+          </div>
         </div>
       </div>
       <!--/end-->
@@ -489,7 +487,7 @@ export default {
       saving: false
     };
   },
-  // computed
+  // * computed
   computed: {
     meeting_code: {
       get() {
@@ -500,9 +498,13 @@ export default {
       }
     }
   },
-  // on page mount
+  // * before destroy
+  beforeDestroy() {
+    // ? exit and reset
+    this.exitsession();
+  },
+  // * on page mount
   async mounted() {
-    this.saving = true;
     new ClipboardJS(".btn");
     let application_url = window.location.href; // get current url
     // *On page mount check if the meeting name is available
@@ -514,13 +516,24 @@ export default {
     } else {
       this.$store.commit("savemeetingurl", application_url); // save meeting to vuex
     }
-    setTimeout(() => {
-      this.saving = false;
-    }, 1000);
   },
-  // methods
+  // * methods
   methods: {
-    // join meeting
+    // * initalize meeting
+    initializemeeting(id, item) {
+      let meeting_views = document.querySelectorAll(".meeting-streams");
+      this.sessions.forEach((e, stream_index) => {
+        meeting_views.forEach((remoteview, video_index) => {
+          if (e.sessionid === id && stream_index === video_index && item) {
+            if (remoteview.srcObject) {
+              return;
+            }
+            remoteview.srcObject = item;
+          }
+        });
+      });
+    },
+    // * join meeting
     joinmeeting() {
       // ? make connection only when username is available
       this.loading = true;
@@ -529,8 +542,8 @@ export default {
       let meeting_name = split_meeting_url.pop();
 
       this.user.signalingClient = io(
-        "http://localhost:3000/"
-        //"https://webrtc-app-backend-vue.herokuapp.com/"
+        //"http://localhost:3000/"
+        "https://webrtc-app-backend-vue.herokuapp.com/"
       );
       // * join a meeting
       this.user.signalingClient.on("connect", async () => {
@@ -539,7 +552,10 @@ export default {
           meeting_url: meeting_name, // meeting id
           socket_id: this.user.signalingClient.id // socket id
         };
-        await saveonemeeting(value); // persist session in db
+        if (value.user_name !== null) {
+          await saveonemeeting(value); // persist session in db
+          this.item.user_name = null;
+        }
 
         // * Joining meeting
         this.status = "Joining";
@@ -575,12 +591,15 @@ export default {
         this.$nextTick(async () => {
           let localView = document.getElementById("local_view");
           //console.log(localView);
-          if (!localView.srcObject) {
-            this.user.localStream = await navigator.mediaDevices.getUserMedia(
-              this.constraints
-            );
-            localView.srcObject = this.user.localStream;
-          }
+
+          this.user.localStream = await navigator.mediaDevices.getUserMedia(
+            this.constraints
+          );
+          localView.srcObject = this.user.localStream;
+          this.initializemeeting(
+            this.user.signalingClient.id,
+            this.user.localStream
+          );
           // !end
 
           // * Get the video and audio tracks streams
@@ -619,14 +638,7 @@ export default {
             );
           // ! remote tracks
           this.user.peerConnection.ontrack = event => {
-            //console.log("Event", event.streams[0]);
-            let remoteView = document.getElementById("remote_view");
-            if (remoteView.srcObject) {
-              //console.log("[user] Remote view with src", remoteView);
-              return;
-            }
-            //console.log("[user] Remote view without", remoteView);
-            remoteView.srcObject = event.streams[0];
+            this.initializemeeting(data, event.streams[0]);
           };
           //!end
 
@@ -702,14 +714,7 @@ export default {
           this.user.peerConnection = new RTCPeerConnection(configuration);
           // ! remote tracks
           this.user.peerConnection.ontrack = event => {
-            //console.log("Event", event.streams[0]);
-            let remoteView = document.getElementById("remote_view");
-            if (remoteView.srcObject) {
-              //console.log("[VIEWER] Remote view with src", remoteView);
-              return;
-            }
-            //console.log("[VIEWER] Remote view without", remoteView);
-            remoteView.srcObject = event.streams[0];
+            this.initializemeeting(response.offerfrom, event.streams[0]);
           };
           //!end
 
@@ -863,33 +868,42 @@ export default {
       await deleteallsession(this.user.signalingClient.id);
       // * disconnect from meeting
       this.user.signalingClient.on("disconnect");
-      this.user.signalingClient.close()
       this.$router.push("/");
     },
     // * disconnect media
     disconnectmedia() {
       let localView = document.getElementById("local_view");
-      let remoteView = document.getElementById("remote_view");
       if (localView.srcObject) {
         localView.srcObject.getTracks().forEach(track => track.stop());
       }
-      if (remoteView.srcObject) {
-        remoteView.srcObject.getTracks().forEach(track => track.stop());
-      }
+      let meeting_views = document.querySelectorAll(".meeting-streams");
+      meeting_views.forEach(e => {
+        if (e.srcObject) {
+          e.srcObject.getTracks().forEach(track => track.stop());
+        }
+      });
+      this.sessions = [];
+      this.user = {
+        signalingClient: null, // user signaling client
+        remoteStream: null, // local meeting streams
+        localStream: null, // local stream
+        sessionid: null, // local session id
+        peerConnection: null // local peer connection
+      };
     },
     // ! end
-    // open dialog
+    // * open dialog
     opendialog() {
       this.dialog = true;
     },
-    // close dialog
+    // * close dialog
     closedialog() {
       this.dialog = false;
     },
-    // end
+    //! end
 
-    // Video Controls
-    // mute and unmute video
+    // ?  Video Controls
+    // * mute and unmute video
     muteandunmuteaudio() {
       let localView = document.getElementById("local_view");
       localView.srcObject
@@ -898,7 +912,7 @@ export default {
       this.audio_track = !this.audio_track;
       // end
     },
-    // start and stop video
+    // * start and stop video
     stopandstartvideo() {
       let localView = document.getElementById("local_view");
       // getTracks()
@@ -908,10 +922,7 @@ export default {
       this.video_stream = !this.video_stream;
       // end
     }
-    // en
-    // meeting control
-
-    // end
+    // ! end
   }
 };
 </script>
