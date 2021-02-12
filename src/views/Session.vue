@@ -34,7 +34,6 @@
           width="100%"
           id="local_view"
           autoplay
-          muted
           playsinline
         ></video>
       </div>
@@ -44,7 +43,7 @@
       <div
         v-if="show_alert"
         style="width: 22rem"
-        class="absolute hidden md:block right-5 px-6 py-6 top-2 shadow-md bg-white rounded-lg"
+        class="absolute right-5 px-6 py-6 top-2 shadow-md bg-white rounded-lg"
       >
         <div class="flex justify-between mb-3">
           <span class="text-lg font-base">Your meeting is ready</span>
@@ -65,6 +64,7 @@
             <video
               width="100%"
               muted
+              controls
               class="meeting-streams h-24 w-full object-cover overflow-hidden"
               autoplay
               playsinline
@@ -864,17 +864,29 @@ export default {
       // * disconnect media
       await this.disconnectmedia();
       // * delete all contents with session id
-      await deleteonemeeting(this.user.signalingClient.id);
-      await deleteallsession(this.user.signalingClient.id);
-      // * disconnect from meeting
-      this.user.signalingClient.on("disconnect");
-      this.$router.push("/");
+      if (this.user.signalingClient) {
+        await deleteonemeeting(this.user.signalingClient.id);
+        await deleteallsession(this.user.signalingClient.id);
+        // * disconnect from meeting
+        this.user.signalingClient.on("disconnect");
+        this.user = {
+          signalingClient: null, // user signaling client
+          remoteStream: null, // local meeting streams
+          localStream: null, // local stream
+          sessionid: null, // local session id
+          peerConnection: null // local peer connection
+        };
+      }
+      let path = "/";
+      if (this.$route.path !== path) this.$router.push(path);
     },
     // * disconnect media
     disconnectmedia() {
       let localView = document.getElementById("local_view");
-      if (localView.srcObject) {
-        localView.srcObject.getTracks().forEach(track => track.stop());
+      if (localView !== null) {
+        if (localView.srcObject) {
+          localView.srcObject.getTracks().forEach(track => track.stop());
+        }
       }
       let meeting_views = document.querySelectorAll(".meeting-streams");
       meeting_views.forEach(e => {
@@ -883,13 +895,6 @@ export default {
         }
       });
       this.sessions = [];
-      this.user = {
-        signalingClient: null, // user signaling client
-        remoteStream: null, // local meeting streams
-        localStream: null, // local stream
-        sessionid: null, // local session id
-        peerConnection: null // local peer connection
-      };
     },
     // ! end
     // * open dialog
