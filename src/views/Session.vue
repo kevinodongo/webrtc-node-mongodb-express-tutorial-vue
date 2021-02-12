@@ -63,7 +63,7 @@
          v-for="(item, index) in streams"
           :key="item.id ? item.id : index"
          -->
-        <div class="w-full rounded-lg h-24 relative">
+        <div class="w-full bg-gray-900 rounded-lg ml-2 mt-2 h-24 relative">
           <video
             id="remote_view"
             width="100%"
@@ -115,7 +115,7 @@
           <div class="pb-2 px-4">
             <a
               v-if="show_chat === false"
-              href="mailto:webmaster@example.com"
+              href="mailto:webuser@example.com"
               class="w-full mb-2 inline-flex justify-center rounded-md border border-transparent shadow-sm px-3 py-2 text-base font-medium text-blue-600 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:w-auto"
             >
               <box-icon
@@ -155,7 +155,7 @@
       <!--Bottom menu content-->
       <div class="absolute flex items-center left-1 bottom-28">
         <box-icon name="dots-horizontal" color="#2563EB"></box-icon>
-        <div class="text-gray-600 text-xs font-medium ml-2">Kevin Odongo</div>
+        <div class="text-gray-600 text-xs font-medium ml-2">Ongoing</div>
       </div>
       <div
         v-if="modal"
@@ -339,18 +339,9 @@
                     <div class="grid grid-cols-1">
                       <button
                         :disabled="invalid"
-                        @click="joinmeetingasmaster"
+                        @click="joinmeeting"
                         type="button"
                         class="w-full cursor-pointer inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 p-3 bg-purple-600 text-base font-medium text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:w-auto"
-                      >
-                        <Spinner v-if="saving" />
-                        <span class="ml-2">Join meeting</span>
-                      </button>
-                      <button
-                        :disabled="invalid"
-                        @click="joinmeetingasviewer"
-                        type="button"
-                        class="w-full cursor-pointer mt-3 inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 p-3 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:w-auto"
                       >
                         <Spinner v-if="saving" />
                         <span class="ml-2">Join meeting</span>
@@ -464,19 +455,12 @@ export default {
       dialog: false,
       // end
       // logged || guest user
-      master: {
+      user: {
         signalingClient: null, // user signaling client
         remoteStream: null, // local meeting streams
         localStream: null, // local stream
         sessionid: null, // local session id
         peerConnection: null // local peer connection
-      },
-      viewer: {
-        signalingClient: null, // user signaling client
-        localStream: null, // remote stream
-        remoteStream: null, // remote meeting streams
-        sessionid: null, // remote session id
-        peerConnection: null // remote peer connection
       },
       // loading || meeting
       loading: false,
@@ -500,7 +484,7 @@ export default {
       video_stream: true,
       audio_track: true,
       //end
-      user_master: null,
+      user_user: null,
       error: null,
       saving: false
     };
@@ -518,7 +502,7 @@ export default {
   },
   // on page mount
   async mounted() {
-    //this.saving = true;
+    this.saving = true;
     new ClipboardJS(".btn");
     let application_url = window.location.href; // get current url
     // *On page mount check if the meeting name is available
@@ -530,53 +514,30 @@ export default {
     } else {
       this.$store.commit("savemeetingurl", application_url); // save meeting to vuex
     }
-
-    // // * Fetch all that have joined the meeting
-    // const sessions_response = await fetchallmeetings(`${meeting_id}`);
-    // if (sessions_response.length > 0) {
-    //   console.log(sessions_response);
-    //   this.user_master = false;
-    //   this.saving = false;
-    // } else if (sessions_response.length === 0) {
-    //   this.user_master = true;
-    //   this.saving = false;
-    // } else {
-    //   this.error = true;
-    //   this.saving = false;
-    // }
-    // // !end
+    setTimeout(() => {
+      this.saving = false;
+    }, 1000);
   },
   // methods
   methods: {
-    // initalize meeting
-    initializemeeting() {
-      let meeting_views = document.querySelectorAll(".meeting-streams");
-      this.streams.forEach((e, stream_index) => {
-        meeting_views.forEach((i, video_index) => {
-          if (stream_index === video_index && e.stream) {
-            i.srcObject = e.stream;
-          }
-        });
-      });
-    },
-    // joined meeting as master
-    joinmeetingasmaster() {
+    // join meeting
+    joinmeeting() {
       // ? make connection only when username is available
       this.loading = true;
       // * get the meeting meeting
       let split_meeting_url = this.meeting_code.split("/");
       let meeting_name = split_meeting_url.pop();
 
-      this.master.signalingClient = io(
+      this.user.signalingClient = io(
         "http://localhost:3000/"
         //"https://webrtc-app-backend-vue.herokuapp.com/"
       );
       // * join a meeting
-      this.master.signalingClient.on("connect", async () => {
+      this.user.signalingClient.on("connect", async () => {
         let value = {
           user_name: encryptinformation(this.item.user_name), // session user name (to be encrypted)
           meeting_url: meeting_name, // meeting id
-          socket_id: this.master.signalingClient.id // socket id
+          socket_id: this.user.signalingClient.id // socket id
         };
         await saveonemeeting(value); // persist session in db
 
@@ -602,11 +563,11 @@ export default {
         this.status = "Processing";
 
         // * notify joining meeting
-        this.master.signalingClient.emit(
+        this.user.signalingClient.emit(
           "joined",
           JSON.stringify({
             meetingid: `${meeting_name}`,
-            sessionid: `${this.master.signalingClient.id}`
+            sessionid: `${this.user.signalingClient.id}`
           })
         );
 
@@ -614,10 +575,12 @@ export default {
         this.$nextTick(async () => {
           let localView = document.getElementById("local_view");
           //console.log(localView);
-          this.master.localStream = await navigator.mediaDevices.getUserMedia(
-            this.constraints
-          );
-          localView.srcObject = this.master.localStream;
+          if (!localView.srcObject) {
+            this.user.localStream = await navigator.mediaDevices.getUserMedia(
+              this.constraints
+            );
+            localView.srcObject = this.user.localStream;
+          }
           // !end
 
           // * Get the video and audio tracks streams
@@ -631,12 +594,13 @@ export default {
           }
         });
         //!end
-        this.master.signalingClient.connect();
+        this.user.signalingClient.connect();
       });
+      // !end
 
-      // * await for new user to join meeting
-      this.master.signalingClient.on("joined", async data => {
-        if (data !== this.master.signalingClient.id) {
+      // * listen to users joining create an offer and send
+      this.user.signalingClient.on("joined", async data => {
+        if (data !== this.user.signalingClient.id) {
           // * fetch user details
           const joined_user = await fetchonemeeting(data);
           this.sessions.push(joined_user);
@@ -645,234 +609,216 @@ export default {
           const configuration = {
             iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
           };
-          this.master.peerConnection = new RTCPeerConnection(configuration);
+          this.user.peerConnection = new RTCPeerConnection(configuration);
           let localView = document.getElementById("local_view");
-          localView.srcObject = this.master.localStream;
-          //console.log("[MASTER]", localView, localView.srcObject);
+          //console.log("[user]", localView, localView.srcObject);
           localView.srcObject
             .getTracks()
             .forEach(track =>
-              this.master.peerConnection.addTrack(track, localView.srcObject)
+              this.user.peerConnection.addTrack(track, localView.srcObject)
             );
           // ! remote tracks
-          this.master.peerConnection.ontrack = event => {
+          this.user.peerConnection.ontrack = event => {
             //console.log("Event", event.streams[0]);
             let remoteView = document.getElementById("remote_view");
             if (remoteView.srcObject) {
-              //console.log("[MASTER] Remote view with src", remoteView);
+              //console.log("[user] Remote view with src", remoteView);
               return;
             }
-            //console.log("[MASTER] Remote view without", remoteView);
+            //console.log("[user] Remote view without", remoteView);
             remoteView.srcObject = event.streams[0];
           };
           //!end
 
+          // ? ICE GATHERING WITHOUT TRICKLE
+          // this.user.peerConnection.addEventListener(
+          //   "icegatheringstatechange",
+          //   event => {
+          //     if (event.target.iceGatheringState === "complete") {
+          //       this.user.signalingClient.emit(
+          //         "offer_message",
+          //         JSON.stringify({
+          //           desc: this.user.peerConnection.localDescription,
+          //           offerfrom: `${this.user.signalingClient.id}`,
+          //           offerto: `${data}` // ? send offer to
+          //         })
+          //       );
+          //     }
+          //   }
+          // );
+
+          // ? WITH TRICLE ENABLED
+
           // * create an offer and send
-          await this.master.peerConnection.setLocalDescription(
-            await this.master.peerConnection.createOffer({
+          await this.user.peerConnection.setLocalDescription(
+            await this.user.peerConnection.createOffer({
               offerToReceiveAudio: true,
               offerToReceiveVideo: true
             })
           );
 
-          // ? ICE GATHERING WITHOUT TRICKLE
-          this.master.peerConnection.addEventListener(
-            "icegatheringstatechange",
-            event => {
-              if (event.target.iceGatheringState === "complete") {
-                this.master.signalingClient.emit(
-                  "offer_message",
-                  JSON.stringify({
-                    desc: this.master.peerConnection.localDescription,
-                    offerfrom: `${this.master.signalingClient.id}`,
-                    offerto: `${data}` // ? send offer to
-                  })
-                );
-              }
-            }
-          );
-        }
-        this.master.signalingClient.connect();
-      });
-
-      // * await for a new answer
-      this.master.signalingClient.on("answer_message", async data => {
-        const response = JSON.parse(data);
-        console.log("[MASTER] peer connection", this.master.peerConnection);
-
-        if (response.desc.type === "answer") {
-          // * set remote description and ice
-          //console.log("[MASTER] Answer", response);
-          await this.master.peerConnection.setRemoteDescription(response.desc);
-        }
-
-        this.master.signalingClient.connect();
-      });
-
-      // * await for new messages
-      this.master.signalingClient.on("sendmessage", async data => {
-        if (data) {
-          let new_message = await fetchonesession(data);
-          let user_name = await fetchonemeeting(new_message.sessionid);
-          new_message.sessionid = decryptinformation(user_name.name);
-          this.messages.push(new_message);
-        }
-        this.master.signalingClient.connect();
-      });
-      // !end
-    },
-    // joined meeting as viewer
-    async joinmeetingasviewer() {
-      // ? make connection only when username is available
-      this.loading = true;
-      // * get the meeting meeting
-      let split_meeting_url = this.meeting_code.split("/");
-      let meeting_name = split_meeting_url.pop();
-
-      this.viewer.signalingClient = io(
-        "http://localhost:3000/"
-        //"https://webrtc-app-backend-vue.herokuapp.com/"
-      );
-      this.viewer.signalingClient.on("connect", async () => {
-        let value = {
-          user_name: encryptinformation(this.item.user_name), // session user name (to be encrypted)
-          meeting_url: meeting_name, // meeting id
-          socket_id: this.viewer.signalingClient.id // socket id
-        };
-        await saveonemeeting(value); // persist session in db
-        // * Joining meeting
-        this.status = "Joining";
-        let path = `/session/${meeting_name}`;
-        if (this.$route.path !== path) this.$router.replace(path);
-
-        // * Fetch all that have joined the meeting
-        const sessions_response = await fetchallmeetings(`${meeting_name}`);
-        this.sessions = [...sessions_response];
-        // * Fetch all messages and attachments
-        const contents_response = await fetchallsessions(`${meeting_name}`);
-        contents_response.forEach(async e => {
-          const user_name = await fetchonemeeting(e.sessionid);
-          e.sessionid = decryptinformation(user_name.name);
-          this.messages.push(e);
-        });
-
-        // * join meeting
-        this.loading = false;
-        this.meeting = true;
-        this.status = "Processing";
-
-        // * notify joining meeting
-        this.viewer.signalingClient.emit(
-          "joined",
-          JSON.stringify({
-            meetingid: `${meeting_name}`,
-            sessionid: `${this.viewer.signalingClient.id}`
-          })
-        );
-        this.viewer.signalingClient.connect();
-      });
-      // * await for new user to join meeting
-      this.viewer.signalingClient.on("joined", async data => {
-        if (data !== this.viewer.signalingClient.id) {
-          // * fetch user details
-          const joined_user = await fetchonemeeting(data);
-          this.sessions.push(joined_user);
-
-          // ? NOTE FOR MESH ALSO LISTEN AND SEND AN OFFER
-          //!end
-        }
-        this.viewer.signalingClient.connect();
-      });
-
-      // * await on offer
-      this.viewer.signalingClient.on("offer_message", async data => {
-        const response = JSON.parse(data);
-        // * create rtc connection
-        let localView = document.getElementById("local_view");
-        this.viewer.localStream = await navigator.mediaDevices.getUserMedia(
-          this.constraints
-        );
-        localView.srcObject = this.viewer.localStream;
-
-        // * Get the video and audio tracks streams
-        const audioTracks = localView.srcObject.getAudioTracks();
-        const videoTracks = localView.srcObject.getVideoTracks();
-        const peerTracks = localView.srcObject.getTracks();
-        if (audioTracks.length > 0) {
-          //console.log(`Using audio device: ${audioTracks[0].label}`);
-        }
-        if (videoTracks.length > 0) {
-          // console.log(`Using video device: ${videoTracks[0].label}`);
-        }
-        //!end
-
-        // * create a peer connectiion
-        const configuration = {
-          iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
-        };
-        this.viewer.peerConnection = new RTCPeerConnection(configuration);
-        // ! remote tracks
-        this.viewer.peerConnection.ontrack = event => {
-          //console.log("Event", event.streams[0]);
-          let remoteView = document.getElementById("remote_view");
-          if (remoteView.srcObject) {
-            //console.log("[VIEWER] Remote view with src", remoteView);
-            return;
-          }
-          //console.log("[VIEWER] Remote view without", remoteView);
-          remoteView.srcObject = event.streams[0];
-        };
-
-        if (response.desc) {
-          if (response.desc.type === "offer") {
-            //console.log("[VIEWER] Offer", response);
-            // * set offer to remote
-            await this.viewer.peerConnection.setRemoteDescription(
-              response.desc
+          this.user.peerConnection.onicecandidate = ({ candidate }) =>
+            this.user.signalingClient.emit(
+              "offer_message",
+              JSON.stringify({
+                desc: {
+                  offer: this.user.peerConnection.localDescription,
+                  icecandidate: { candidate }
+                },
+                offerfrom: `${this.user.signalingClient.id}`,
+                offerto: `${data}` // ? send offer to
+              })
             );
+        }
+        this.user.signalingClient.connect();
+      });
+      //!end
+
+      // * listen to users offers and create an answer
+      this.user.signalingClient.on("offer_message", async data => {
+        const response = JSON.parse(data);
+        this.$nextTick(async () => {
+          // * Get the video and audio tracks streams
+          let localView = document.getElementById("local_view");
+          this.user.localStream = await navigator.mediaDevices.getUserMedia(
+            this.constraints
+          );
+          localView.srcObject = this.user.localStream;
+          const audioTracks = localView.srcObject.getAudioTracks();
+          const videoTracks = localView.srcObject.getVideoTracks();
+          const peerTracks = localView.srcObject.getTracks();
+          if (audioTracks.length > 0) {
+            //console.log(`Using audio device: ${audioTracks[0].label}`);
+          }
+          if (videoTracks.length > 0) {
+            //console.log(`Using video device: ${videoTracks[0].label}`);
+          }
+          //!end
+
+          // * create rtc connection
+          const configuration = {
+            iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+          };
+          this.user.peerConnection = new RTCPeerConnection(configuration);
+          // ! remote tracks
+          this.user.peerConnection.ontrack = event => {
+            //console.log("Event", event.streams[0]);
+            let remoteView = document.getElementById("remote_view");
+            if (remoteView.srcObject) {
+              //console.log("[VIEWER] Remote view with src", remoteView);
+              return;
+            }
+            //console.log("[VIEWER] Remote view without", remoteView);
+            remoteView.srcObject = event.streams[0];
+          };
+          //!end
+
+          if (response.desc) {
+            //console.log("[user] Offer", response);
+            // * set offer to remote
+
+            if (response.desc.offer) {
+              await this.user.peerConnection
+                .setRemoteDescription(response.desc.offer)
+                .catch(error => {
+                  if (error) return;
+                });
+            }
+
             peerTracks.forEach(track =>
-              this.viewer.peerConnection.addTrack(track, localView.srcObject)
+              this.user.peerConnection.addTrack(track, localView.srcObject)
             );
             // * create an answer set to local description and send
-            await this.viewer.peerConnection.setLocalDescription(
-              await this.viewer.peerConnection.createAnswer({
+            await this.user.peerConnection.setLocalDescription(
+              await this.user.peerConnection.createAnswer({
                 offerToReceiveAudio: true,
                 offerToReceiveVideo: true
               })
             );
 
+            // * send a answer and candidate
+            this.user.peerConnection.onicecandidate = ({ candidate }) =>
+              this.user.signalingClient.emit(
+                "answer_message",
+                JSON.stringify({
+                  desc: {
+                    answer: this.user.peerConnection.localDescription,
+                    icecandidate: { candidate }
+                  },
+                  offerfrom: `${this.user.signalingClient.id}`,
+                  offerto: `${response.offerfrom}` // ? send answer to
+                })
+              );
+
+            // * add ice candidates
+            if (this.user.peerConnection.canTrickleIceCandidates === true) {
+              //console.log("[user] Candidate", response.desc.icecandidate);
+              await this.user.peerConnection
+                .addIceCandidate(response.desc.icecandidate)
+                .catch(error => {
+                  if (error) return;
+                });
+            }
+
             // ? ICE GATHERING WITHOUT TRICKLE
-            this.viewer.peerConnection.addEventListener(
-              "icegatheringstatechange",
-              event => {
-                if (event.target.iceGatheringState === "complete") {
-                  this.viewer.signalingClient.emit(
-                    "answer_message",
-                    JSON.stringify({
-                      desc: this.viewer.peerConnection.localDescription,
-                      offerfrom: `${this.viewer.signalingClient.id}`,
-                      offerto: `${response.offerfrom}` // ? send answer to
-                    })
-                  );
-                }
-              }
-            );
-            console.log("[VIEWER] peer connection", this.viewer.peerConnection);
+            //   this.user.peerConnection.addEventListener(
+            //     "icegatheringstatechange",
+            //     event => {
+            //       if (event.target.iceGatheringState === "complete") {
+            //         this.user.signalingClient.emit(
+            //           "answer_message",
+            //           JSON.stringify({
+            //             desc: this.user.peerConnection.localDescription,
+            //             offerfrom: `${this.user.signalingClient.id}`,
+            //             offerto: `${response.offerfrom}` // ? send answer to
+            //           })
+            //         );
+            //       }
+            //     }
+            //   );
+            //   console.log("[user] peer connection", this.user.peerConnection);
+          }
+        });
+        this.user.signalingClient.connect();
+      });
+
+      // * listen to answers and set to remote description
+      this.user.signalingClient.on("answer_message", async data => {
+        const response = JSON.parse(data);
+
+        if (response.desc) {
+          // * set remote description and ice
+          //console.log("[user] Answer", response);
+          if (response.desc.answer) {
+            await this.user.peerConnection
+              .setRemoteDescription(response.desc.answer)
+              .catch(error => {
+                if (error) return;
+              });
+          }
+
+          if (this.user.peerConnection.canTrickleIceCandidates === true) {
+            //console.log("[user] Candidate", response.desc.icecandidate);
+            await this.user.peerConnection
+              .addIceCandidate(response.desc.icecandidate)
+              .catch(error => {
+                if (error) return;
+              });
           }
         }
 
-        this.viewer.signalingClient.connect();
+        this.user.signalingClient.connect();
       });
 
       // * await for new messages
-      this.viewer.signalingClient.on("sendmessage", async data => {
+      this.user.signalingClient.on("sendmessage", async data => {
         if (data) {
           let new_message = await fetchonesession(data);
           let user_name = await fetchonemeeting(new_message.sessionid);
           new_message.sessionid = decryptinformation(user_name.name);
           this.messages.push(new_message);
         }
-        this.viewer.signalingClient.connect();
+        this.user.signalingClient.connect();
       });
       // !end
     },
@@ -901,7 +847,8 @@ export default {
           meetingid: value.meetingid // meeting id
         })
       );
-      this.viewer.signalingClient.connect();
+
+      this.user.signalingClient.connect();
     },
     // * delete one session
     async deletecontent(item) {
@@ -909,27 +856,28 @@ export default {
     },
     // * exit meetings
     async exitsession() {
+      // * disconnect media
+      await this.disconnectmedia();
       // * delete all contents with session id
       await deleteonemeeting(this.user.signalingClient.id);
       await deleteallsession(this.user.signalingClient.id);
       // * disconnect from meeting
       this.user.signalingClient.on("disconnect");
-      // * remove tracks
+      this.user.signalingClient.close()
+      this.$router.push("/");
+    },
+    // * disconnect media
+    disconnectmedia() {
       let localView = document.getElementById("local_view");
+      let remoteView = document.getElementById("remote_view");
       if (localView.srcObject) {
         localView.srcObject.getTracks().forEach(track => track.stop());
       }
-      // * loop through streams and remove tracks
-      if (this.user.remoteStreams.length > 0) {
-        this.user.remoteStreams.forEach(remoteStream =>
-          remoteStream.getTracks().forEach(track => track.stop())
-        );
-        this.user.remoteStreams = [];
+      if (remoteView.srcObject) {
+        remoteView.srcObject.getTracks().forEach(track => track.stop());
       }
-      this.$router.push("/");
     },
     // ! end
-
     // open dialog
     opendialog() {
       this.dialog = true;
@@ -959,15 +907,8 @@ export default {
         .forEach(track => (track.enabled = !track.enabled));
       this.video_stream = !this.video_stream;
       // end
-    },
-    // end
-    checkifitemisempty(item) {
-      for (var key in item) {
-        // eslint-disable-next-line no-prototype-builtins
-        if (item.hasOwnProperty(key)) return false;
-      }
-      return true;
     }
+    // en
     // meeting control
 
     // end
